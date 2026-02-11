@@ -1,0 +1,129 @@
+#app {
+  padding: 16px;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: #111827;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.subtitle {
+  margin: 0;
+  color: #4b5563;
+  font-size: 0.9rem;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.file-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #374151;
+}
+
+.file-label input {
+  padding: 6px 0;
+}
+
+.file-input {
+  padding: 6px 0;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.primary {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.primary:disabled {
+  background: #93c5fd;
+  cursor: not-allowed;
+}
+
+.secondary {
+  padding: 8px 12px;
+  border: 1px solid #cbd5f5;
+  border-radius: 6px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.status {
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.path-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  background: #f9fafb;
+}
+
+.path-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.path-value {
+  font-size: 0.78rem;
+  word-break: break-all;
+  color: #111827;
+}
+
+.status.info {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.status.success {
+  background: #ecfdf3;
+  color: #047857;
+}
+
+.status.error {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.footnote {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
