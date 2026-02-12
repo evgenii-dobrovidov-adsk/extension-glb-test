@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import { Forma } from "forma-embedded-view-sdk/auto";
 import type { Status } from "./types";
-import { isGlbFile, MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_MB, createTranslationMatrix } from "./types";
+import { isGlbFile, MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_MB, createTransformMatrix } from "./types";
 
 type Props = {
   selectedFile: File | null;
@@ -44,7 +44,7 @@ export function AddElementToProposal({ selectedFile, isBusy, setIsBusy, setStatu
 
       const { x, y } = point;
       const z = await Forma.terrain.getElevationAt({ x, y });
-      const transform = createTranslationMatrix(x, y, z);
+      const transform = createTransformMatrix(x, y, z, 10);
 
       setStatus({ type: "info", message: "Uploading GLB to Forma..." });
       const arrayBuffer = await selectedFile.arrayBuffer();

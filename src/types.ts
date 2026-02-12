@@ -35,9 +35,10 @@ export const formatSize = (bytes: number) =>
 
 export const isGlbFile = (file: File) => file.name.toLowerCase().endsWith(".glb");
 
-export const createTranslationMatrix = (
+export const createTransformMatrix = (
   x: number,
   y: number,
   z: number,
+  scale: number = 1,
 ): TransformMatrix =>
-  [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1] as TransformMatrix;
+  [scale, 0, 0, 0, 0, scale, 0, 0, 0, 0, scale, 0, x, y, z, 1] as TransformMatrix;
