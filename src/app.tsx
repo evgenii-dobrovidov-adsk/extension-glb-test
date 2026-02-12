@@ -82,12 +82,85 @@ async function transformGlb(
   return result.buffer;
 }
 
+type GeometryData = {
+  position: Float32Array;
+  normal?: Float32Array;
+};
+
+/**
+ * Extract GeometryData from a GLB file using glTF-Transform.
+ * Converts to triangle soup (no index reuse) for compatibility.
+ */
+async function glbToGeometryData(glbBuffer: ArrayBuffer): Promise<GeometryData> {
+  const io = new WebIO();
+  const doc = await io.readBinary(new Uint8Array(glbBuffer));
+
+  const allPositions: number[] = [];
+  const allNormals: number[] = [];
+
+  for (const mesh of doc.getRoot().listMeshes()) {
+    for (const primitive of mesh.listPrimitives()) {
+      const positionAccessor = primitive.getAttribute("POSITION");
+      const normalAccessor = primitive.getAttribute("NORMAL");
+      const indicesAccessor = primitive.getIndices();
+
+      if (!positionAccessor) continue;
+
+      const positions = positionAccessor.getArray();
+      const normals = normalAccessor?.getArray();
+      const indices = indicesAccessor?.getArray();
+
+      if (!positions) continue;
+
+      if (indices) {
+        // Expand indexed geometry to triangle soup
+        for (let i = 0; i < indices.length; i++) {
+          const idx = indices[i]!;
+          allPositions.push(
+            positions[idx * 3]!,
+            positions[idx * 3 + 1]!,
+            positions[idx * 3 + 2]!,
+          );
+          if (normals) {
+            allNormals.push(
+              normals[idx * 3]!,
+              normals[idx * 3 + 1]!,
+              normals[idx * 3 + 2]!,
+            );
+          }
+        }
+      } else {
+        // Already triangle soup
+        for (let i = 0; i < positions.length; i++) {
+          allPositions.push(positions[i]!);
+        }
+        if (normals) {
+          for (let i = 0; i < normals.length; i++) {
+            allNormals.push(normals[i]!);
+          }
+        }
+      }
+    }
+  }
+
+  const geometryData: GeometryData = {
+    position: new Float32Array(allPositions),
+  };
+
+  if (allNormals.length > 0) {
+    geometryData.normal = new Float32Array(allNormals);
+  }
+
+  return geometryData;
+}
+
 export function App() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [elementPath, setElementPath] = useState<string | null>(null);
   const [renderGlbId, setRenderGlbId] = useState<string | null>(null);
+  const [meshId, setMeshId] = useState<string | null>(null);
 
   const onFileChange = (event: Event) => {
     const target = event.currentTarget as HTMLInputElement | null;
@@ -291,6 +364,81 @@ export function App() {
     }
   };
 
+  const handleRenderMesh = async () => {
+    if (!selectedFile) {
+      setStatus({ type: "error", message: "Select a .glb file first." });
+      return;
+    }
+
+    if (!isGlbFile(selectedFile)) {
+      setStatus({ type: "error", message: "Selected file must be a .glb." });
+      return;
+    }
+
+    setIsBusy(true);
+    setStatus({ type: "info", message: "Click in the scene to place the mesh..." });
+
+    try {
+      const point = await Forma.designTool.getPoint();
+      if (!point) {
+        setStatus({ type: "info", message: "Placement cancelled." });
+        return;
+      }
+
+      const { x, y } = point;
+      const z = await Forma.terrain.getElevationAt({ x, y });
+
+      setStatus({ type: "info", message: "Converting GLB to mesh data..." });
+      const arrayBuffer = await selectedFile.arrayBuffer();
+      const geometryData = await glbToGeometryData(arrayBuffer);
+
+      // Create transform matrix with +90 degree rotation around X axis (Y-up to Z-up) and 0.1 scale
+      const s = 0.1;
+      const transform: TransformMatrix = [
+        s, 0, 0, 0,
+        0, 0, s, 0,
+        0, -s, 0, 0,
+        x, y, z, 1,
+      ];
+
+      setStatus({ type: "info", message: "Rendering mesh..." });
+      const { id } = await Forma.render.addMesh({ geometryData, transform });
+      setMeshId(id);
+
+      setStatus({
+        type: "success",
+        message: `Mesh rendered at (${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)})`,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unexpected error during mesh render.";
+      setStatus({ type: "error", message });
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleCleanupMesh = async () => {
+    setIsBusy(true);
+    setStatus({ type: "info", message: "Cleaning up all meshes..." });
+
+    try {
+      await Forma.render.cleanup();
+      setStatus({ type: "success", message: "All meshes removed." });
+      setMeshId(null);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unexpected error during cleanup.";
+      setStatus({ type: "error", message });
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
   return (
     <div class="app">
       <h1>GLB Placer</h1>
@@ -362,6 +510,35 @@ export function App() {
           <div class="path-row">
             <span class="path-label">Render ID</span>
             <code class="path-value">{renderGlbId}</code>
+          </div>
+        )}
+      </div>
+
+      <h2>Render as Mesh</h2>
+      <p class="subtitle">
+        Converts GLB to GeometryData and uses RenderApi.addMesh.
+      </p>
+      <div class="panel">
+        <div class="button-row">
+          <button
+            class="primary"
+            onClick={handleRenderMesh}
+            disabled={isBusy || !selectedFile}
+          >
+            {isBusy ? "Working..." : "Pick point & add mesh"}
+          </button>
+          <button
+            class="secondary"
+            onClick={handleCleanupMesh}
+            disabled={isBusy}
+          >
+            Cleanup all
+          </button>
+        </div>
+        {meshId && (
+          <div class="path-row">
+            <span class="path-label">Mesh ID</span>
+            <code class="path-value">{meshId}</code>
           </div>
         )}
       </div>
