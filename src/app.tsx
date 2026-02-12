@@ -1,5 +1,6 @@
 import { useState } from "preact/hooks";
 import { Forma } from "forma-embedded-view-sdk/auto";
+import { WebIO } from "@gltf-transform/core";
 import "./app.css";
 
 type Status = {
@@ -41,11 +42,41 @@ const createTranslationMatrix = (
 ): TransformMatrix =>
   [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1] as TransformMatrix;
 
+/**
+ * Apply a translation to a GLB using glTF-Transform.
+ * Modifies the root scene nodes to include the translation.
+ */
+async function translateGlb(
+  glbBuffer: ArrayBuffer,
+  x: number,
+  y: number,
+  z: number,
+): Promise<ArrayBuffer> {
+  const io = new WebIO();
+  const doc = await io.readBinary(new Uint8Array(glbBuffer));
+
+  // Apply translation to all root nodes in all scenes
+  for (const scene of doc.getRoot().listScenes()) {
+    for (const node of scene.listChildren()) {
+      const currentTranslation = node.getTranslation();
+      node.setTranslation([
+        currentTranslation[0] + x,
+        currentTranslation[1] + y,
+        currentTranslation[2] + z,
+      ]);
+    }
+  }
+
+  const result = await io.writeBinary(doc);
+  return result.buffer;
+}
+
 export function App() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [elementPath, setElementPath] = useState<string | null>(null);
+  const [renderGlbId, setRenderGlbId] = useState<string | null>(null);
 
   const onFileChange = (event: Event) => {
     const target = event.currentTarget as HTMLInputElement | null;
@@ -188,6 +219,77 @@ export function App() {
     }
   };
 
+  const handleRenderAtEdge = async () => {
+    if (!selectedFile) {
+      setStatus({ type: "error", message: "Select a .glb file first." });
+      return;
+    }
+
+    if (!isGlbFile(selectedFile)) {
+      setStatus({ type: "error", message: "Selected file must be a .glb." });
+      return;
+    }
+
+    setIsBusy(true);
+    setStatus({ type: "info", message: "Computing terrain edge position..." });
+
+    try {
+      const bbox = await Forma.terrain.getBbox();
+      // Place at max X edge (east side of terrain), centered on Y
+      const edgeX = bbox.max.x;
+      const centerY = (bbox.min.y + bbox.max.y) / 2;
+      // Get elevation at the edge position, then add some height above terrain
+      const terrainZ = await Forma.terrain.getElevationAt({ x: edgeX, y: centerY });
+      const heightAboveTerrain = 10; // 10 meters above terrain
+      const targetZ = terrainZ + heightAboveTerrain;
+
+      setStatus({ type: "info", message: "Transforming GLB..." });
+      const arrayBuffer = await selectedFile.arrayBuffer();
+      const translatedGlb = await translateGlb(arrayBuffer, edgeX, centerY, targetZ);
+
+      setStatus({ type: "info", message: "Rendering GLB at terrain edge..." });
+      const { id } = await Forma.render.glb.add({ glb: translatedGlb });
+      setRenderGlbId(id);
+
+      setStatus({
+        type: "success",
+        message: `GLB rendered at terrain edge (x=${edgeX.toFixed(1)}, z=${targetZ.toFixed(1)}m)`,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unexpected error during render.";
+      setStatus({ type: "error", message });
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  const handleRemoveRendered = async () => {
+    if (!renderGlbId) {
+      setStatus({ type: "error", message: "No rendered GLB to remove." });
+      return;
+    }
+
+    setIsBusy(true);
+    setStatus({ type: "info", message: "Removing rendered GLB..." });
+
+    try {
+      await Forma.render.glb.remove({ id: renderGlbId });
+      setStatus({ type: "success", message: "Rendered GLB removed." });
+      setRenderGlbId(null);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Unexpected error during removal.";
+      setStatus({ type: "error", message });
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
   return (
     <div class="app">
       <h1>GLB uploader</h1>
@@ -219,6 +321,34 @@ export function App() {
           disabled={isBusy || !elementPath}
         >
           Delete element
+        </button>
+      </div>
+
+      <h2>Render at Terrain Edge</h2>
+      <p class="subtitle">
+        Use <code>RenderGlbApi.add()</code> to place GLB at terrain edge with
+        elevation.
+      </p>
+      <div class="panel">
+        <button
+          class="primary"
+          onClick={handleRenderAtEdge}
+          disabled={isBusy || !selectedFile}
+        >
+          {isBusy ? "Working..." : "Render at edge"}
+        </button>
+        {renderGlbId && (
+          <div class="path-row">
+            <span class="path-label">Render ID</span>
+            <code class="path-value">{renderGlbId}</code>
+          </div>
+        )}
+        <button
+          class="secondary"
+          onClick={handleRemoveRendered}
+          disabled={isBusy || !renderGlbId}
+        >
+          Remove rendered
         </button>
         {status && <div class={`status ${status.type}`}>{status.message}</div>}
       </div>

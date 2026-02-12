@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@gltf-transform/core": "^4.3.0",
     "forma-embedded-view-sdk": "0.89.0",
     "preact": "^10.27.2"
   },
