@@ -43,28 +43,39 @@ const createTranslationMatrix = (
   [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, x, y, z, 1] as TransformMatrix;
 
 /**
- * Apply a translation to a GLB using glTF-Transform.
- * Modifies the root scene nodes to include the translation.
+ * Apply a translation and scale to a GLB using glTF-Transform.
+ * Creates a wrapper node to apply the transformation.
+ * Note: glTF uses Y-up, Forma uses Z-up, so we swap Y and Z.
  */
-async function translateGlb(
+async function transformGlb(
   glbBuffer: ArrayBuffer,
   x: number,
   y: number,
   z: number,
+  scale: number = 1,
 ): Promise<ArrayBuffer> {
   const io = new WebIO();
   const doc = await io.readBinary(new Uint8Array(glbBuffer));
 
-  // Apply translation to all root nodes in all scenes
+  // For each scene, create a wrapper node and reparent all children under it
   for (const scene of doc.getRoot().listScenes()) {
-    for (const node of scene.listChildren()) {
-      const currentTranslation = node.getTranslation();
-      node.setTranslation([
-        currentTranslation[0] + x,
-        currentTranslation[1] + y,
-        currentTranslation[2] + z,
-      ]);
+    const children = scene.listChildren();
+    if (children.length === 0) continue;
+
+    // Create a wrapper node with our transform
+    // Swap Y and Z for coordinate system conversion (Forma Z-up → glTF Y-up)
+    const wrapper = doc.createNode("transform_wrapper");
+    wrapper.setTranslation([x, z, -y]);
+    wrapper.setScale([scale, scale, scale]);
+
+    // Reparent all existing root nodes under the wrapper
+    for (const child of children) {
+      scene.removeChild(child);
+      wrapper.addChild(child);
     }
+
+    // Add wrapper to scene
+    scene.addChild(wrapper);
   }
 
   const result = await io.writeBinary(doc);
@@ -231,29 +242,30 @@ export function App() {
     }
 
     setIsBusy(true);
-    setStatus({ type: "info", message: "Computing terrain edge position..." });
+    setStatus({ type: "info", message: "Click in the scene to place the GLB..." });
 
     try {
-      const bbox = await Forma.terrain.getBbox();
-      // Place at max X edge (east side of terrain), centered on Y
-      const edgeX = bbox.max.x;
-      const centerY = (bbox.min.y + bbox.max.y) / 2;
-      // Get elevation at the edge position, then add some height above terrain
-      const terrainZ = await Forma.terrain.getElevationAt({ x: edgeX, y: centerY });
-      const heightAboveTerrain = 10; // 10 meters above terrain
-      const targetZ = terrainZ + heightAboveTerrain;
+      const point = await Forma.designTool.getPoint();
+      if (!point) {
+        setStatus({ type: "info", message: "Placement cancelled." });
+        return;
+      }
+
+      const { x, y } = point;
+      // Get terrain elevation at the picked point
+      const z = await Forma.terrain.getElevationAt({ x, y });
 
       setStatus({ type: "info", message: "Transforming GLB..." });
       const arrayBuffer = await selectedFile.arrayBuffer();
-      const translatedGlb = await translateGlb(arrayBuffer, edgeX, centerY, targetZ);
+      const transformedGlb = await transformGlb(arrayBuffer, x, y, z, 10);
 
-      setStatus({ type: "info", message: "Rendering GLB at terrain edge..." });
-      const { id } = await Forma.render.glb.add({ glb: translatedGlb });
+      setStatus({ type: "info", message: "Rendering GLB..." });
+      const { id } = await Forma.render.glb.add({ glb: transformedGlb });
       setRenderGlbId(id);
 
       setStatus({
         type: "success",
-        message: `GLB rendered at terrain edge (x=${edgeX.toFixed(1)}, z=${targetZ.toFixed(1)}m)`,
+        message: `GLB rendered at (${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)})`,
       });
     } catch (error) {
       const message =
@@ -324,10 +336,9 @@ export function App() {
         </button>
       </div>
 
-      <h2>Render at Terrain Edge</h2>
+      <h2>Render at Point</h2>
       <p class="subtitle">
-        Use <code>RenderGlbApi.add()</code> to place GLB at terrain edge with
-        elevation.
+        Use <code>RenderGlbApi.add()</code> to place GLB at a selected point.
       </p>
       <div class="panel">
         <button
@@ -335,7 +346,7 @@ export function App() {
           onClick={handleRenderAtEdge}
           disabled={isBusy || !selectedFile}
         >
-          {isBusy ? "Working..." : "Render at edge"}
+          {isBusy ? "Working..." : "Pick point & render"}
         </button>
         {renderGlbId && (
           <div class="path-row">
