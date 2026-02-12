@@ -127,3 +127,24 @@
   font-size: 0.75rem;
   color: #6b7280;
 }
+
+.file-info {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #f3f4f6;
+  font-size: 0.85rem;
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+}
+
+.button-row .primary {
+  flex: 1;
+}
+
+h2 {
+  margin: 8px 0 0 0;
+  font-size: 1.1rem;
+}

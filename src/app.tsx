@@ -138,25 +138,26 @@ export function App() {
     }
 
     setIsBusy(true);
-    setStatus({ type: "info", message: "Uploading GLB to Forma..." });
+    setStatus({ type: "info", message: "Click in the scene to place the element..." });
 
     try {
+      const point = await Forma.designTool.getPoint();
+      if (!point) {
+        setStatus({ type: "info", message: "Placement cancelled." });
+        return;
+      }
+
+      const { x, y } = point;
+      const z = await Forma.terrain.getElevationAt({ x, y });
+      const transform = createTranslationMatrix(x, y, z);
+
+      setStatus({ type: "info", message: "Uploading GLB to Forma..." });
       const arrayBuffer = await selectedFile.arrayBuffer();
       const integrate = Forma.integrateElements;
       const upload = await integrate.uploadFile({ data: arrayBuffer });
       if (!upload.blobId) {
         throw new Error("Upload did not return blobId.");
       }
-
-      setStatus({ type: "info", message: "Computing terrain center..." });
-      const bbox = await Forma.terrain.getBbox();
-      const centerX = (bbox.min.x + bbox.max.x) / 2;
-      const centerY = (bbox.min.y + bbox.max.y) / 2;
-      const centerZ =
-        typeof Forma.terrain.getElevationAt === "function"
-          ? await Forma.terrain.getElevationAt({ x: centerX, y: centerY })
-          : (bbox.min.z ?? 0);
-      const transform = createTranslationMatrix(centerX, centerY, centerZ);
 
       setStatus({ type: "info", message: "Creating element in the scene..." });
       const { urn: geometryUrn } = await integrate.createElementV2({
@@ -174,16 +175,6 @@ export function App() {
       });
       setElementPath(path);
 
-      // Optionally add the GLB to the library so that it can be reused across proposals
-      // await Forma.library.createItem({
-      //   authcontext: Forma.getProjectId(),
-      //   data: {
-      //     name: "My element",
-      //     urn: geometryUrn,
-      //     status: "success",
-      //   },
-      // });
-
       await Forma.experimental.render.element.add({
         elements: [
           {
@@ -193,7 +184,10 @@ export function App() {
         ],
       });
 
-      setStatus({ type: "success", message: "GLB placed at terrain center." });
+      setStatus({
+        type: "success",
+        message: `Element added at (${x.toFixed(1)}, ${y.toFixed(1)}, ${z.toFixed(1)})`,
+      });
     } catch (error) {
       const message =
         error instanceof Error
@@ -230,7 +224,7 @@ export function App() {
     }
   };
 
-  const handleRenderAtEdge = async () => {
+  const handleRenderAtPoint = async () => {
     if (!selectedFile) {
       setStatus({ type: "error", message: "Select a .glb file first." });
       return;
@@ -278,24 +272,19 @@ export function App() {
     }
   };
 
-  const handleRemoveRendered = async () => {
-    if (!renderGlbId) {
-      setStatus({ type: "error", message: "No rendered GLB to remove." });
-      return;
-    }
-
+  const handleCleanup = async () => {
     setIsBusy(true);
-    setStatus({ type: "info", message: "Removing rendered GLB..." });
+    setStatus({ type: "info", message: "Cleaning up all rendered GLBs..." });
 
     try {
-      await Forma.render.glb.remove({ id: renderGlbId });
-      setStatus({ type: "success", message: "Rendered GLB removed." });
+      await Forma.render.glb.cleanup();
+      setStatus({ type: "success", message: "All rendered GLBs removed." });
       setRenderGlbId(null);
     } catch (error) {
       const message =
         error instanceof Error
           ? error.message
-          : "Unexpected error during removal.";
+          : "Unexpected error during cleanup.";
       setStatus({ type: "error", message });
     } finally {
       setIsBusy(false);
@@ -304,26 +293,38 @@ export function App() {
 
   return (
     <div class="app">
-      <h1>GLB uploader</h1>
-      <p class="subtitle">
-        Select a <code>.glb</code> file and place it at the center of the
-        terrain.
-      </p>
+      <h1>GLB Placer</h1>
+
       <div class="panel">
         <label class="file-label">
-          GLB file
+          Select GLB file
           <input type="file" accept=".glb" onChange={onFileChange} />
         </label>
+        {selectedFile && (
+          <div class="file-info">
+            <strong>{selectedFile.name}</strong> ({formatSize(selectedFile.size)})
+          </div>
+        )}
+        <p class="footnote">Max file size: {MAX_FILE_SIZE_MB} MB</p>
+      </div>
+
+      {status && <div class={`status ${status.type}`}>{status.message}</div>}
+
+      <h2>Add Element to Proposal</h2>
+      <p class="subtitle">
+        Creates a permanent element in the proposal at a selected point.
+      </p>
+      <div class="panel">
         <button
           class="primary"
           onClick={handleUpload}
           disabled={isBusy || !selectedFile}
         >
-          {isBusy ? "Working..." : "Upload & place"}
+          {isBusy ? "Working..." : "Pick point & add"}
         </button>
         {elementPath && (
           <div class="path-row">
-            <span class="path-label">Path</span>
+            <span class="path-label">Element Path</span>
             <code class="path-value">{elementPath}</code>
           </div>
         )}
@@ -336,34 +337,34 @@ export function App() {
         </button>
       </div>
 
-      <h2>Render at Point</h2>
+      <h2>Render Temporarily in Scene</h2>
       <p class="subtitle">
-        Use <code>RenderGlbApi.add()</code> to place GLB at a selected point.
+        Renders GLB temporarily (not saved to proposal).
       </p>
       <div class="panel">
-        <button
-          class="primary"
-          onClick={handleRenderAtEdge}
-          disabled={isBusy || !selectedFile}
-        >
-          {isBusy ? "Working..." : "Pick point & render"}
-        </button>
+        <div class="button-row">
+          <button
+            class="primary"
+            onClick={handleRenderAtPoint}
+            disabled={isBusy || !selectedFile}
+          >
+            {isBusy ? "Working..." : "Pick point & render"}
+          </button>
+          <button
+            class="secondary"
+            onClick={handleCleanup}
+            disabled={isBusy}
+          >
+            Cleanup all
+          </button>
+        </div>
         {renderGlbId && (
           <div class="path-row">
             <span class="path-label">Render ID</span>
             <code class="path-value">{renderGlbId}</code>
           </div>
         )}
-        <button
-          class="secondary"
-          onClick={handleRemoveRendered}
-          disabled={isBusy || !renderGlbId}
-        >
-          Remove rendered
-        </button>
-        {status && <div class={`status ${status.type}`}>{status.message}</div>}
       </div>
-      <p class="footnote">Max file size: {MAX_FILE_SIZE_MB} MB</p>
     </div>
   );
 }
