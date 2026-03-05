@@ -4,7 +4,7 @@ import type { GeometryData } from "./types";
 /**
  * Apply a translation and scale to a GLB using glTF-Transform.
  * Creates a wrapper node to apply the transformation.
- * Note: glTF uses Y-up, Forma uses Z-up, so we swap Y and Z.
+ * Note: glTF uses Y-up, Forma Site Design uses Z-up, so we swap Y and Z.
  */
 export async function transformGlb(
   glbBuffer: ArrayBuffer,

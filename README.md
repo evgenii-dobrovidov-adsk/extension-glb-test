@@ -1,4 +1,4 @@
-# GLB Placer Extension for Autodesk Forma
+# GLB Placer Extension for Autodesk Forma Site Design
 
 ## Overview
 
@@ -10,7 +10,7 @@ A Proof of Concept extension for Autodesk Forma Site Design that demonstrates th
 
 ### 1. Add Element to Proposal
 
-Creates a **permanent element** in the proposal using the Forma Elements API.
+Creates a **permanent element** in the proposal using the Forma Site Design Elements API.
 
 - Uses `integrateElements.uploadFile()` to upload the GLB
 - Creates an element with `integrateElements.createElementV2()`
@@ -47,7 +47,7 @@ Converts GLB to **GeometryData** and renders using `RenderApi.addMesh()`.
 
 ## Key Technologies
 
-- **Forma Embedded View SDK**: Provides APIs for element management, rendering, and design tools
+- **Forma Site Design Embedded View SDK**: Provides APIs for element management, rendering, and design tools
 - **glTF-Transform**: Library for reading and manipulating GLB/glTF files
 - **Preact**: Lightweight UI framework
 - **Vite**: Build tool and dev server
@@ -66,7 +66,7 @@ src/
 
 ## Resources
 
-- [Forma Embedded View SDK Documentation](https://app.autodeskforma.com/forma-embedded-view-sdk/docs/)
+- [Forma Site Design Embedded View SDK Documentation](https://app.autodeskforma.com/forma-embedded-view-sdk/docs/)
 - [RenderGlbApi](https://app.autodeskforma.com/forma-embedded-view-sdk/docs/interfaces/render.RenderGlbApi.html)
 - [RenderApi.addMesh](https://app.autodeskforma.com/forma-embedded-view-sdk/docs/interfaces/render.RenderApi.html#addmesh-1)
 - [DesignToolApi.getPoint](https://app.autodeskforma.com/forma-embedded-view-sdk/docs/interfaces/design-tool.DesignToolApi.html#getpoint)

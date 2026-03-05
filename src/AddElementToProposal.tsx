@@ -65,7 +65,7 @@ export function AddElementToProposal({ selectedFile, isBusy, setIsBusy, setStatu
         setStatus({ type: "info", message: "Using cached GLB..." });
         geometryUrn = cachedUpload.current!.geometryUrn;
       } else {
-        setStatus({ type: "info", message: "Uploading GLB to Forma..." });
+        setStatus({ type: "info", message: "Uploading GLB to Forma Site Design..." });
         const arrayBuffer = await selectedFile.arrayBuffer();
         const integrate = Forma.integrateElements;
         const upload = await integrate.uploadFile({ data: arrayBuffer });
